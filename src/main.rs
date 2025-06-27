@@ -1,19 +1,19 @@
+#![deny(clippy::missing_const_for_fn)]
+
 use std::{env, sync::Arc};
 
 use eyre::Context as _;
-use tracing::info;
 use twilight_gateway::{ConfigBuilder, Event, EventTypeFlags, Intents, Shard, ShardId, StreamExt};
 use twilight_http::Client;
 use twilight_model::{
-	channel::message::{AllowedMentions, MessageReference, MessageReferenceType},
+	channel::message::AllowedMentions,
 	gateway::{
 		payload::outgoing::update_presence::UpdatePresencePayload,
 		presence::{Activity, ActivityType, Status},
 	},
-	id::Id,
 };
 
-use crate::utils::UserExt as _;
+use crate::utils::BoxedEventHandler;
 
 pub mod utils;
 
@@ -65,61 +65,41 @@ async fn main() -> eyre::Result<()> {
 				continue;
 			}
 		};
+		let event = Arc::new(event);
 
-		let client = client.clone();
-		tokio::task::spawn(async move {
-			match handle(EventContext {
-				event,
-				client: client,
-			})
-			.await
-			{
-				Ok(()) => (),
-				Err(err) => tracing::error!(?err, "failed to handle event"),
-			}
-		});
+		for handler in inventory::iter::<BoxedEventHandler>::iter() {
+			let client = client.clone();
+			let event = event.clone();
+			let context = EventContext { event, client };
+			tokio::task::spawn(async move {
+				match handler.handle(context).await {
+					Ok(()) => (),
+					Err(err) => tracing::error!(?err, "failed to handle event"),
+				}
+			});
+		}
 	}
 
 	Ok(())
 }
 
-struct EventContext {
-	event: Event,
-	client: Arc<Client>,
+pub mod features;
+
+pub struct EventWithContext<T> {
+	pub event: T,
+	pub client: Arc<Client>,
 }
 
-async fn handle(context: EventContext) -> eyre::Result<()> {
-	match &context.event {
-		Event::MessageCreate(message) => {
-			if message.guild_id.is_none() {
-				info!("Forwarding DM from {}", message.author.name);
-				let DM_CHANNEL_ID = Id::new(1386643549071872031);
-				let payload = serde_json::to_vec(&serde_json::json!({
-					"content": "",
-					"message_reference": (serde_json::to_value(MessageReference {
-						channel_id: Some(message.channel_id),
-						message_id: Some(message.id),
-						guild_id: message.guild_id,
-						kind: MessageReferenceType::Forward,
-						fail_if_not_exists: Some(true),
-					})?),
-				}))?;
-				let forwarded_message = context
-					.client
-					.create_message(DM_CHANNEL_ID)
-					.payload_json(&payload)
-					.await?
-					.model()
-					.await?;
-				context
-					.client
-					.create_message(DM_CHANNEL_ID)
-					.content(&format!("Received DM from {}", message.author.mention()))
-					.reply(forwarded_message.id)
-					.await?;
-			}
+impl<T> EventWithContext<T> {
+	pub fn new(event: T, client: Arc<Client>) -> EventWithContext<T> {
+		EventWithContext { event, client }
+	}
+	pub fn replace<N>(self, value: N) -> EventWithContext<N> {
+		EventWithContext {
+			event: value,
+			client: self.client,
 		}
-		_otherwise => {}
-	};
-	Ok(())
+	}
 }
+
+type EventContext = EventWithContext<Arc<Event>>;
