@@ -1,6 +1,10 @@
 use std::pin::Pin;
 
-use twilight_model::user::User;
+use twilight_model::{
+	channel::{message::{MessageReference, MessageReferenceType}, Message},
+	id::{marker::MessageMarker, Id},
+	user::User,
+};
 
 use crate::EventContext;
 
@@ -11,6 +15,47 @@ impl UserExt for User {
 	fn mention(&self) -> String {
 		format!("<@{}>", self.id)
 	}
+}
+
+pub trait MessageExt {
+	fn reply_to_reply(&self) -> Id<MessageMarker>;
+}
+
+impl MessageExt for Message {
+	fn reply_to_reply(&self) -> Id<MessageMarker> {
+		match self.reference {
+			Some(MessageReference {
+				kind: MessageReferenceType::Default,
+				message_id: Some(reply_id),
+				..
+			}) => reply_id,
+			_ => self.id,
+		}
+	}
+}
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum AuthorPerms {
+	Ignore,
+	Answer,
+	Obey,
+}
+impl AuthorPerms {
+	pub fn should_reply(&self) -> bool {
+		*self >= Self::Answer
+	}
+	pub fn should_obey(&self) -> bool {
+		*self >= Self::Obey
+	}
+}
+
+pub fn author_perms(msg: &Message) -> AuthorPerms {
+	if msg.author.bot {
+		return AuthorPerms::Ignore;
+	}
+	if msg.author.id == Id::new(310702108997320705) {
+		return AuthorPerms::Obey;
+	}
+	AuthorPerms::Answer
 }
 
 type EventFnInner = fn(EventContext) -> Box<dyn Future<Output = eyre::Result<()>> + Send>;
@@ -42,7 +87,7 @@ macro_rules! handle_all {
 
 #[macro_export]
 macro_rules! handle {
-	($case:ident, $handler:ident) => {
+	($case:ident, $handler:expr) => {
 		::inventory::submit! {
 			$crate::utils::BoxedEventHandler::new(|_event_context| ::std::boxed::Box::new(async move {
 				let $crate::EventWithContext {event: _event, client: _client } = _event_context;
@@ -52,5 +97,19 @@ macro_rules! handle {
 				}
 			}))
 		}
+	};
+}
+
+#[macro_export]
+macro_rules! handle_message {
+	($condition:ident, $handler:expr) => {
+		$crate::handle!(MessageCreate, async |ctx: $crate::EventWithContext<
+			&::twilight_model::gateway::payload::incoming::MessageCreate,
+		>| {
+			if !$crate::utils::author_perms(&ctx).$condition() {
+				return Ok(());
+			}
+			$handler(ctx).await
+		});
 	};
 }

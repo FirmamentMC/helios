@@ -1,19 +1,22 @@
 #![deny(clippy::missing_const_for_fn)]
+#![feature(iter_intersperse)]
 
-use std::{env, sync::Arc};
+use std::{env, ops::Deref, sync::Arc};
 
 use eyre::Context as _;
-use twilight_gateway::{ConfigBuilder, Event, EventTypeFlags, Intents, Shard, ShardId, StreamExt};
-use twilight_http::Client;
+use twilight_gateway::{
+	ConfigBuilder, Event, EventTypeFlags, Intents, Shard, ShardId, StreamExt,
+};
+use twilight_http::{request::channel::message::CreateMessage, Client};
 use twilight_model::{
 	channel::message::AllowedMentions,
 	gateway::{
-		payload::outgoing::update_presence::UpdatePresencePayload,
+		payload::{incoming::MessageCreate, outgoing::update_presence::UpdatePresencePayload},
 		presence::{Activity, ActivityType, Status},
 	},
 };
 
-use crate::utils::BoxedEventHandler;
+use crate::utils::{BoxedEventHandler, MessageExt as _};
 
 pub mod utils;
 
@@ -22,11 +25,14 @@ async fn main() -> eyre::Result<()> {
 	tracing_subscriber::fmt::init();
 	_ = dotenv::dotenv();
 	let token = env::var("DISCORD_TOKEN").wrap_err("Missing DISCORD_TOKEN env var")?;
-	let intents = Intents::MESSAGE_CONTENT | Intents::DIRECT_MESSAGES;
+	let intents = Intents::MESSAGE_CONTENT | Intents::DIRECT_MESSAGES | Intents::GUILD_MESSAGES;
 
 	let client = Client::builder()
 		.token(token.clone())
-		.default_allowed_mentions(AllowedMentions::default())
+		.default_allowed_mentions(AllowedMentions {
+			replied_user: true,
+			..AllowedMentions::default()
+		})
 		.build();
 	let client = Arc::new(client);
 
@@ -90,6 +96,14 @@ pub struct EventWithContext<T> {
 	pub client: Arc<Client>,
 }
 
+impl<T> Deref for EventWithContext<T> {
+	type Target = T;
+
+	fn deref(&self) -> &Self::Target {
+		&self.event
+	}
+}
+
 impl<T> EventWithContext<T> {
 	pub fn new(event: T, client: Arc<Client>) -> EventWithContext<T> {
 		EventWithContext { event, client }
@@ -99,6 +113,15 @@ impl<T> EventWithContext<T> {
 			event: value,
 			client: self.client,
 		}
+	}
+}
+
+impl EventWithContext<&MessageCreate> {
+	pub fn reply(&self) -> CreateMessage<'_> {
+		self
+			.client
+			.create_message(self.channel_id)
+			.reply(self.reply_to_reply())
 	}
 }
 
