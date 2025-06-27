@@ -37,7 +37,7 @@
         };
         devShells.default = mkShell {
           buildInputs =
-            [rustWithSrc sccache cargo-make lldb] ++ deps;
+            [rustWithSrc sccache cargo-make lldb podman] ++ deps;
           nativeBuildInputs = [pkg-config];
           shellHook = ''
             export RUSTC_WRAPPER="${sccache}/bin/sccache"
