@@ -89,6 +89,7 @@ struct TagHandler {
 impl TagHandler {
 	async fn write_tag(&self, key: &str, reply: Option<&str>) -> eyre::Result<()> {
 		let path = self.write_handle.lock().await;
+		tokio::fs::create_dir_all(&*path).await?;
 		let file_path = path.join(format!("{key}.md"));
 		match reply {
 			Some(content) => {
@@ -105,18 +106,21 @@ impl TagHandler {
 
 	async fn load() -> eyre::Result<TagHandler> {
 		let path = PathBuf::from("tags");
-		let mut dir = tokio::fs::read_dir(&path).await?;
 		let tags = cow_hashmap::CowHashMap::new();
-		while let Some(file) = dir.next_entry().await? {
-			let name = file.file_name();
-			let name = name
-				.to_str()
-				.ok_or_eyre("could not parse os string in tags")?;
-			let content = tokio::fs::read_to_string(file.path()).await?;
-			let (name, content) = parse_tag(name, content);
-			tags.insert(name.into(), content.into());
+		match tokio::fs::read_dir(&path).await {
+			Ok(mut dir) => {
+				while let Some(file) = dir.next_entry().await? {
+					let name = file.file_name();
+					let name = name
+						.to_str()
+						.ok_or_eyre("could not parse os string in tags")?;
+					let content = tokio::fs::read_to_string(file.path()).await?;
+					let (name, content) = parse_tag(name, content);
+					tags.insert(name.into(), content.into());
+				}
+			}
+			Err(err) => tracing::warn!(?err, "Failed to read tags folder", ),
 		}
-
 		Ok(TagHandler {
 			tags: tags,
 			write_handle: Mutex::new(path),
