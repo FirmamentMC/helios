@@ -10,7 +10,7 @@ on:
 
 env:
    REGISTRY: ghcr.io
-   IMAGE: ${{ github.repository }}
+   IMAGE: firmamentmc/helios
 
 jobs:
    gen-versions:
