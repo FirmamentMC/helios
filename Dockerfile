@@ -19,7 +19,6 @@ FROM chef AS builder
 COPY --from=planner /build/recipe.json recipe.json
 
 # build deps (cached by docker)
-ARG BUILD_PLATFORM="x86_64"
 RUN cargo chef cook --release --target ${BUILD_PLATFORM}-unknown-linux-musl --recipe-path recipe.json
 
 # build the application
