@@ -4,7 +4,7 @@ USER root
 
 # needed for cross compilation from x86 to arm
 #ARG BUILD_PLATFORM="x86_64" # set to "aarch64" for arm builds
-#RUN rustup target add ${BUILD_PLATFORM}-unknown-linux-musl
+RUN rustup target add ${BUILD_PLATFORM}-unknown-linux-musl
 
 RUN cargo install cargo-chef
 WORKDIR /build
