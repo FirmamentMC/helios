@@ -90,9 +90,8 @@ macro_rules! handle {
 	($case:ident, $handler:expr) => {
 		::inventory::submit! {
 			$crate::utils::BoxedEventHandler::new(|_event_context| ::std::boxed::Box::new(async move {
-				let $crate::EventWithContext {event: _event, client: _client } = _event_context;
-				match _event.as_ref() {
-					::twilight_gateway::Event::$case (_prop) => $handler($crate::EventWithContext::new(_prop, _client)).await,
+				match _event_context.event.as_ref() {
+					::twilight_gateway::Event::$case (_prop) => $handler($crate::EventWithContext {event: _prop, .._event_context}).await,
 					_otherwise => Ok(())
 				}
 			}))
