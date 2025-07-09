@@ -10,9 +10,9 @@ use twilight_gateway::{
 };
 use twilight_http::{request::channel::message::CreateMessage, Client};
 use twilight_model::{
-	channel::message::AllowedMentions,
+	channel::{message::AllowedMentions, Message},
 	gateway::{
-		payload::{incoming::MessageCreate, outgoing::update_presence::UpdatePresencePayload},
+		payload::outgoing::update_presence::UpdatePresencePayload,
 		presence::{Activity, ActivityType, Status},
 	},
 };
@@ -121,7 +121,7 @@ impl<T> EventWithContext<T> {
 	}
 }
 
-impl EventWithContext<&MessageCreate> {
+impl <T> EventWithContext<&T> where T : Deref<Target=Message> {
 	pub fn reply(&self) -> CreateMessage<'_> {
 		self
 			.client

@@ -1,11 +1,10 @@
-use std::pin::Pin;
+use std::{ops::Deref, pin::Pin};
 
 use twilight_model::{
 	channel::{
 		Message,
 		message::{MessageReference, MessageReferenceType},
 	},
-	gateway::payload::incoming::MessageCreate,
 	id::{
 		Id,
 		marker::{GuildMarker, MessageMarker, RoleMarker},
@@ -55,7 +54,9 @@ impl AuthorPerms {
 	}
 }
 
-pub fn author_perms(msg: &EventWithContext<&MessageCreate>) -> AuthorPerms {
+pub fn author_perms<T: Deref<Target = Message>>(
+	msg: &EventWithContext<&T>,
+) -> AuthorPerms {
 	if msg.author.bot {
 		return AuthorPerms::Ignore;
 	}
@@ -64,6 +65,9 @@ pub fn author_perms(msg: &EventWithContext<&MessageCreate>) -> AuthorPerms {
 		return AuthorPerms::Obey;
 	}
 	if let Some(member) = msg.cache.member(FIRMAMENT_SERVER, author_id) {
+		if member.roles().contains(&DISREGARD_ROLE) {
+			return AuthorPerms::Ignore;
+		}
 		if member.roles().contains(&OBEY_ROLE) {
 			return AuthorPerms::Obey;
 		}
@@ -89,6 +93,7 @@ impl BoxedEventHandler {
 
 pub static FIRMAMENT_SERVER: Id<GuildMarker> = Id::new(1088154030628417616);
 pub static OBEY_ROLE: Id<RoleMarker> = Id::new(1392489377699201086);
+pub static DISREGARD_ROLE: Id<RoleMarker> = Id::new(1392592492775342122);
 
 inventory::collect!(BoxedEventHandler);
 
