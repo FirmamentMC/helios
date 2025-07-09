@@ -7,13 +7,14 @@ use twilight_model::{
 	},
 	id::{
 		Id,
-		marker::{GuildMarker, MessageMarker, RoleMarker},
+		marker::MessageMarker,
 	},
 	user::User,
 };
 
-use crate::{EventContext, EventWithContext};
+use crate::{utils::consts::{DISREGARD_ROLE, FIRMAMENT_SERVER, OBEY_ROLE, THE_BIG_RAT}, EventContext, EventWithContext};
 
+pub mod consts;
 pub trait UserExt {
 	fn mention(&self) -> String;
 }
@@ -61,7 +62,7 @@ pub fn author_perms<T: Deref<Target = Message>>(
 		return AuthorPerms::Ignore;
 	}
 	let author_id = msg.author.id;
-	if author_id == Id::new(310702108997320705) {
+	if author_id == THE_BIG_RAT {
 		return AuthorPerms::Obey;
 	}
 	if let Some(member) = msg.cache.member(FIRMAMENT_SERVER, author_id) {
@@ -90,10 +91,6 @@ impl BoxedEventHandler {
 		fut.await
 	}
 }
-
-pub static FIRMAMENT_SERVER: Id<GuildMarker> = Id::new(1088154030628417616);
-pub static OBEY_ROLE: Id<RoleMarker> = Id::new(1392489377699201086);
-pub static DISREGARD_ROLE: Id<RoleMarker> = Id::new(1392592492775342122);
 
 inventory::collect!(BoxedEventHandler);
 
