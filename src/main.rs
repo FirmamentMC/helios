@@ -4,6 +4,7 @@
 use std::{env, ops::Deref, sync::Arc};
 
 use eyre::Context as _;
+use twilight_cache_inmemory::InMemoryCache;
 use twilight_gateway::{
 	ConfigBuilder, Event, EventTypeFlags, Intents, Shard, ShardId, StreamExt,
 };
@@ -61,6 +62,7 @@ async fn main() -> eyre::Result<()> {
 			Status::DoNotDisturb,
 		)?)
 		.build();
+	let cache: Arc<HeliosCache> = Default::default();
 	let mut shard = Shard::with_config(ShardId::ONE, config);
 
 	while let Some(item) = shard.next_event(EventTypeFlags::all()).await {
@@ -71,12 +73,16 @@ async fn main() -> eyre::Result<()> {
 				continue;
 			}
 		};
+
+		cache.update(&event);
+
 		let event = Arc::new(event);
 
 		for handler in inventory::iter::<BoxedEventHandler>::iter() {
 			let client = client.clone();
 			let event = event.clone();
-			let context = EventContext { event, client };
+			let cache = cache.clone();
+			let context = EventContext { event, client, cache };
 			tokio::task::spawn(async move {
 				match handler.handle(context).await {
 					Ok(()) => (),
@@ -91,9 +97,11 @@ async fn main() -> eyre::Result<()> {
 
 pub mod features;
 
+pub type HeliosCache = InMemoryCache;
 pub struct EventWithContext<T> {
 	pub event: T,
 	pub client: Arc<Client>,
+	pub cache: Arc<HeliosCache>
 }
 
 impl<T> Deref for EventWithContext<T> {
@@ -105,13 +113,10 @@ impl<T> Deref for EventWithContext<T> {
 }
 
 impl<T> EventWithContext<T> {
-	pub fn new(event: T, client: Arc<Client>) -> EventWithContext<T> {
-		EventWithContext { event, client }
-	}
 	pub fn replace<N>(self, value: N) -> EventWithContext<N> {
 		EventWithContext {
 			event: value,
-			client: self.client,
+			..self
 		}
 	}
 }

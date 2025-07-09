@@ -1,12 +1,19 @@
 use std::pin::Pin;
 
 use twilight_model::{
-	channel::{message::{MessageReference, MessageReferenceType}, Message},
-	id::{marker::MessageMarker, Id},
+	channel::{
+		Message,
+		message::{MessageReference, MessageReferenceType},
+	},
+	gateway::payload::incoming::MessageCreate,
+	id::{
+		Id,
+		marker::{GuildMarker, MessageMarker, RoleMarker},
+	},
 	user::User,
 };
 
-use crate::EventContext;
+use crate::{EventContext, EventWithContext};
 
 pub trait UserExt {
 	fn mention(&self) -> String;
@@ -48,12 +55,18 @@ impl AuthorPerms {
 	}
 }
 
-pub fn author_perms(msg: &Message) -> AuthorPerms {
+pub fn author_perms(msg: &EventWithContext<&MessageCreate>) -> AuthorPerms {
 	if msg.author.bot {
 		return AuthorPerms::Ignore;
 	}
-	if msg.author.id == Id::new(310702108997320705) {
+	let author_id = msg.author.id;
+	if author_id == Id::new(310702108997320705) {
 		return AuthorPerms::Obey;
+	}
+	if let Some(member) = msg.cache.member(FIRMAMENT_SERVER, author_id) {
+		if member.roles().contains(&OBEY_ROLE) {
+			return AuthorPerms::Obey;
+		}
 	}
 	AuthorPerms::Answer
 }
@@ -73,6 +86,9 @@ impl BoxedEventHandler {
 		fut.await
 	}
 }
+
+pub static FIRMAMENT_SERVER: Id<GuildMarker> = Id::new(1088154030628417616);
+pub static OBEY_ROLE: Id<RoleMarker> = Id::new(1392489377699201086);
 
 inventory::collect!(BoxedEventHandler);
 

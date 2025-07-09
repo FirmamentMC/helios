@@ -94,7 +94,7 @@ impl TagHandler {
 		match reply {
 			Some(content) => {
 				tokio::fs::write(file_path, content).await?;
-				self.tags.insert(key.into(), content.into());
+				self.tags.insert(key.into(), content.to_owned());
 			}
 			None => {
 				tokio::fs::remove_file(file_path).await?;
@@ -116,13 +116,13 @@ impl TagHandler {
 						.ok_or_eyre("could not parse os string in tags")?;
 					let content = tokio::fs::read_to_string(file.path()).await?;
 					let (name, content) = parse_tag(name, content);
-					tags.insert(name.into(), content.into());
+					tags.insert(name.into(), content);
 				}
 			}
-			Err(err) => tracing::warn!(?err, "Failed to read tags folder", ),
+			Err(err) => tracing::warn!(?err, "Failed to read tags folder",),
 		}
 		Ok(TagHandler {
-			tags: tags,
+			tags,
 			write_handle: Mutex::new(path),
 		})
 	}
