@@ -1,19 +1,50 @@
-use std::time::Duration;
+use std::
+	time::{Duration, SystemTime, UNIX_EPOCH}
+;
 
 use tokio::sync::Mutex;
-use twilight_http::request::channel::reaction::RequestReactionType;
+use twilight_http::{Client, request::channel::reaction::RequestReactionType};
 use twilight_model::{
 	channel::Message,
-	gateway::payload::incoming::MessageCreate,
-	id::{Id, marker::UserMarker},
+	gateway::payload::incoming::{MessageCreate, MessageDelete},
+	id::{
+		Id,
+		marker::{MessageMarker, UserMarker},
+	},
 	util::Timestamp,
 };
 
 use crate::{
-	handle_message, utils::
-		consts::{COUNTING_CHANNEL, FIRMAMENT_SERVER, THE_NO_ONE}
-	, EventWithContext
+	EventWithContext, handle, handle_message,
+	utils::consts::{COUNTING_CHANNEL, FIRMAMENT_SERVER, THE_NO_ONE},
 };
+
+handle_message!(should_reply, on_count);
+handle!(MessageDelete, on_delete);
+async fn on_delete(event: EventWithContext<&MessageDelete>) -> eyre::Result<()> {
+	if event.channel_id != COUNTING_CHANNEL {
+		return Ok(());
+	}
+
+	let current_holder = CURRENT_COUNT.lock().await;
+	let Some(current) = &*current_holder else {
+		return Ok(());
+	};
+	if current.message_id == event.id {
+		let message = format!(
+			"Hi, it is me — cute little mouse — and i am here to provide you with some help. It has come to my attention that recently someone has deleted a message in this channel. Not to worry, I have remembered their number. <@{}> recently posted {}.",
+			current.user, current.count
+		);
+		event
+			.client
+			.create_message(COUNTING_CHANNEL)
+			.content(&message)
+			.await?;
+		mute(&event.client, current.user, Duration::from_days(1)).await?;
+	}
+
+	Ok(())
+}
 
 async fn on_count(event: EventWithContext<&MessageCreate>) -> eyre::Result<()> {
 	if event.channel_id != COUNTING_CHANNEL {
@@ -39,12 +70,13 @@ async fn on_count(event: EventWithContext<&MessageCreate>) -> eyre::Result<()> {
 				.await?;
 			let new = messages
 				.iter()
-				.filter(|it|it.id != event.id)
+				.filter(|it| it.id != event.id)
 				.filter_map(extract_number)
 				.next()
 				.unwrap_or(LastNumber {
 					user: THE_NO_ONE,
 					count: 0,
+					message_id: Id::new(1),
 				});
 			tracing::info!("Loaded counter from channel {:?}", new);
 			new
@@ -72,22 +104,29 @@ async fn on_count(event: EventWithContext<&MessageCreate>) -> eyre::Result<()> {
 	Ok(())
 }
 
-async fn punish(event: EventWithContext<&MessageCreate>) -> eyre::Result<()> {
-	event
-		.client
-		.delete_message(event.channel_id, event.id)
-		.await?;
-	let mute_until =
-		(Timestamp::from_secs(event.timestamp.as_secs() + PUNISH_DURATION.as_secs() as i64))?;
-	event
-		.client
-		.update_guild_member(FIRMAMENT_SERVER, event.author.id)
+async fn mute(client: &Client, id: Id<UserMarker>, duration: Duration) -> eyre::Result<()> {
+	let mute_until = (Timestamp::from_secs(
+		(SystemTime::now()
+			.duration_since(UNIX_EPOCH)
+			.unwrap()
+			.as_secs()
+			+ duration.as_secs()) as i64,
+	))?;
+	client
+		.update_guild_member(FIRMAMENT_SERVER, id)
 		.communication_disabled_until(Some(mute_until))
 		.await?;
 	Ok(())
 }
 
-const PUNISH_DURATION: Duration = Duration::from_hours(1);
+async fn punish(event: EventWithContext<&MessageCreate>) -> eyre::Result<()> {
+	event
+		.client
+		.delete_message(event.channel_id, event.id)
+		.await?;
+	mute(&event.client, event.author.id, Duration::from_hours(1)).await?;
+	Ok(())
+}
 
 fn extract_number(msg: &Message) -> Option<LastNumber> {
 	let number = msg
@@ -98,6 +137,7 @@ fn extract_number(msg: &Message) -> Option<LastNumber> {
 	Some(LastNumber {
 		user: msg.author.id,
 		count: number,
+		message_id: msg.id,
 	})
 }
 
@@ -105,8 +145,7 @@ fn extract_number(msg: &Message) -> Option<LastNumber> {
 struct LastNumber {
 	user: Id<UserMarker>,
 	count: u64,
+	message_id: Id<MessageMarker>,
 }
 
 static CURRENT_COUNT: Mutex<Option<LastNumber>> = Mutex::const_new(None);
-
-handle_message!(should_reply, on_count);
