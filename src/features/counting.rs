@@ -32,8 +32,8 @@ async fn on_delete(event: EventWithContext<&MessageDelete>) -> eyre::Result<()> 
 	};
 	if current.message_id == event.id {
 		let message = format!(
-			"Hi, it is me — cute little mouse — and i am here to provide you with some help. It has come to my attention that recently someone has deleted a message in this channel. Not to worry, I have remembered their number. <@{}> recently posted {}.",
-			current.user, current.count
+			"{} — Hi, it is me — cute little mouse — and i am here to provide you with some help. It has come to my attention that recently someone has deleted a message in this channel. Not to worry, I have remembered their number. <@{}> recently posted {}.",
+			current.count, current.user, current.count
 		);
 		event
 			.client
