@@ -88,6 +88,7 @@ struct TagHandler {
 }
 impl TagHandler {
 	async fn write_tag(&self, key: &str, reply: Option<&str>) -> eyre::Result<()> {
+		tracing::info!("Writing {key}");
 		let path = self.write_handle.lock().await;
 		tokio::fs::create_dir_all(&*path).await?;
 		let file_path = path.join(format!("{key}.md"));
@@ -101,6 +102,7 @@ impl TagHandler {
 				self.tags.remove(key);
 			}
 		}
+		tracing::info!("Tag write of {key} success.");
 		Ok(())
 	}
 
