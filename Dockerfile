@@ -17,5 +17,6 @@ RUN rm rust-toolchain.toml
 RUN cargo build --release --target x86_64-unknown-linux-musl --bin helios
 
 FROM docker.io/alpine:3 AS runtime
+WORKDIR /app
 COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/helios /usr/local/bin/
 CMD ["/usr/local/bin/helios"]
