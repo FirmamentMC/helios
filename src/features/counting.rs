@@ -1,6 +1,4 @@
-use std::
-	time::{Duration, SystemTime, UNIX_EPOCH}
-;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use tokio::sync::Mutex;
 use twilight_http::{Client, request::channel::reaction::RequestReactionType};
@@ -77,6 +75,7 @@ async fn on_count(event: EventWithContext<&MessageCreate>) -> eyre::Result<()> {
 					user: THE_NO_ONE,
 					count: 0,
 					message_id: Id::new(1),
+					number_format: NumberFormat::Decimal,
 				});
 			tracing::info!("Loaded counter from channel {:?}", new);
 			new
@@ -88,6 +87,7 @@ async fn on_count(event: EventWithContext<&MessageCreate>) -> eyre::Result<()> {
 		return punish(event).await;
 	}
 	tracing::info!("Incrementing counter to {given:?}");
+	let format = given.number_format;
 	current_holder.replace(given);
 	drop(current_holder);
 
@@ -96,10 +96,14 @@ async fn on_count(event: EventWithContext<&MessageCreate>) -> eyre::Result<()> {
 		.create_reaction(
 			event.channel_id,
 			event.id,
-			&RequestReactionType::Unicode { name: "🔢" },
+			&RequestReactionType::Unicode {
+				name: match format {
+					NumberFormat::Decimal => "🔢",
+					_ => "🤓",
+				},
+			},
 		)
 		.await?;
-	// TODO: maybe react?
 
 	Ok(())
 }
@@ -129,16 +133,43 @@ async fn punish(event: EventWithContext<&MessageCreate>) -> eyre::Result<()> {
 }
 
 fn extract_number(msg: &Message) -> Option<LastNumber> {
-	let number = msg
+	let (number, number_format) = msg
 		.content
 		.split_whitespace()
 		.next()
-		.and_then(|it| it.parse::<u64>().ok())?;
+		.and_then(parse_number)?;
 	Some(LastNumber {
 		user: msg.author.id,
 		count: number,
+		number_format,
 		message_id: msg.id,
 	})
+}
+
+fn parse_number(text: &str) -> Option<(u64, NumberFormat)> {
+	if let Some(hex) = text.strip_prefix("0x") {
+		Some((
+			u64::from_str_radix(hex, 16).ok()?,
+			NumberFormat::Hexadecimal,
+		))
+	} else if let Some(hex) = text.strip_suffix("h") {
+		Some((
+			u64::from_str_radix(hex, 16).ok()?,
+			NumberFormat::Hexadecimal,
+		))
+	} else if let Some(oct) = text.strip_prefix("0o") {
+		Some((u64::from_str_radix(oct, 8).ok()?, NumberFormat::Octal))
+	} else if let Some(binary) = text.strip_prefix("0b") {
+		Some((u64::from_str_radix(binary, 2).ok()?, NumberFormat::Binary))
+	} else if let Some(unary) = text.strip_prefix("0u") {
+		if unary.chars().any(|it| it != '0') {
+			None
+		} else {
+			Some((unary.len() as u64, NumberFormat::Unary))
+		}
+	} else {
+		None
+	}
 }
 
 #[derive(Clone, Debug)]
@@ -146,6 +177,16 @@ struct LastNumber {
 	user: Id<UserMarker>,
 	count: u64,
 	message_id: Id<MessageMarker>,
+	number_format: NumberFormat,
+}
+
+#[derive(Clone, Debug, Copy, Eq, PartialEq)]
+enum NumberFormat {
+	Decimal,
+	Binary,
+	Hexadecimal,
+	Unary,
+	Octal,
 }
 
 static CURRENT_COUNT: Mutex<Option<LastNumber>> = Mutex::const_new(None);
