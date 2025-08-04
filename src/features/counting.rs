@@ -168,7 +168,7 @@ fn parse_number(text: &str) -> Option<(u64, NumberFormat)> {
 			Some((unary.len() as u64, NumberFormat::Unary))
 		}
 	} else {
-		None
+		Some((u64::from_str_radix(text, 10).ok()?, NumberFormat::Decimal))
 	}
 }
 
