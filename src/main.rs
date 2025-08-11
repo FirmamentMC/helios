@@ -5,12 +5,10 @@ use std::{env, ops::Deref, sync::Arc};
 
 use eyre::Context as _;
 use twilight_cache_inmemory::InMemoryCache;
-use twilight_gateway::{
-	ConfigBuilder, Event, EventTypeFlags, Intents, Shard, ShardId, StreamExt,
-};
-use twilight_http::{request::channel::message::CreateMessage, Client};
+use twilight_gateway::{ConfigBuilder, Event, EventTypeFlags, Intents, Shard, ShardId, StreamExt};
+use twilight_http::{Client, request::channel::message::CreateMessage};
 use twilight_model::{
-	channel::{message::AllowedMentions, Message},
+	channel::{Message, message::AllowedMentions},
 	gateway::{
 		payload::outgoing::update_presence::UpdatePresencePayload,
 		presence::{Activity, ActivityType, Status},
@@ -21,10 +19,17 @@ use crate::utils::{BoxedEventHandler, MessageExt as _};
 
 pub mod utils;
 
-#[tokio::main]
-async fn main() -> eyre::Result<()> {
+fn main() -> eyre::Result<()> {
 	tracing_subscriber::fmt::init();
 	_ = dotenv::dotenv();
+	tracing::info!("Creating async runtime");
+	tokio::runtime::Builder::new_multi_thread()
+		.enable_all()
+		.build()?
+		.block_on(amain())
+}
+async fn amain() -> eyre::Result<()> {
+	tracing::info!("Booting up");
 	let token = env::var("DISCORD_TOKEN").wrap_err("Missing DISCORD_TOKEN env var")?;
 	let intents = Intents::MESSAGE_CONTENT | Intents::DIRECT_MESSAGES | Intents::GUILD_MESSAGES;
 
@@ -36,6 +41,17 @@ async fn main() -> eyre::Result<()> {
 		})
 		.build();
 	let client = Arc::new(client);
+	tracing::info!("Created client");
+	match client.current_user().await {
+		Ok(user) => {
+			let user = user.model().await?;
+			tracing::info!("Logged in as {}", user.name);
+		}
+		Err(err) => {
+			tracing::error!("Failed to log in using token");
+			Err(err)?
+		}
+	}
 
 	let config = ConfigBuilder::new(token, intents)
 		.presence(UpdatePresencePayload::new(
@@ -82,7 +98,11 @@ async fn main() -> eyre::Result<()> {
 			let client = client.clone();
 			let event = event.clone();
 			let cache = cache.clone();
-			let context = EventContext { event, client, cache };
+			let context = EventContext {
+				event,
+				client,
+				cache,
+			};
 			tokio::task::spawn(async move {
 				match handler.handle(context).await {
 					Ok(()) => (),
@@ -91,6 +111,8 @@ async fn main() -> eyre::Result<()> {
 			});
 		}
 	}
+
+	tracing::info!("Got logged out");
 
 	Ok(())
 }
@@ -101,7 +123,7 @@ pub type HeliosCache = InMemoryCache;
 pub struct EventWithContext<T> {
 	pub event: T,
 	pub client: Arc<Client>,
-	pub cache: Arc<HeliosCache>
+	pub cache: Arc<HeliosCache>,
 }
 
 impl<T> Deref for EventWithContext<T> {
@@ -121,10 +143,12 @@ impl<T> EventWithContext<T> {
 	}
 }
 
-impl <T> EventWithContext<&T> where T : Deref<Target=Message> {
+impl<T> EventWithContext<&T>
+where
+	T: Deref<Target = Message>,
+{
 	pub fn reply(&self) -> CreateMessage<'_> {
-		self
-			.client
+		self.client
 			.create_message(self.channel_id)
 			.reply(self.reply_to_reply())
 	}

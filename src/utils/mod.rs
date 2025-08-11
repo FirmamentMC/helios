@@ -15,6 +15,7 @@ use twilight_model::{
 use crate::{utils::consts::{DISREGARD_ROLE, FIRMAMENT_SERVER, OBEY_ROLE, THE_BIG_RAT}, EventContext, EventWithContext};
 
 pub mod consts;
+pub mod cached;
 pub trait UserExt {
 	fn mention(&self) -> String;
 }
