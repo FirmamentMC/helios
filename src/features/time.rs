@@ -1,7 +1,8 @@
+use core::f32;
 use std::sync::Arc;
 
-use chrono::{Datelike, NaiveTime, Timelike, Utc, offset::LocalResult};
-use chrono_tz::Tz;
+use chrono::{Datelike, FixedOffset, NaiveTime, TimeZone, Timelike, Utc, offset::LocalResult};
+use chrono_tz::{TZ_VARIANTS, Tz};
 use csv::StringRecord;
 use eyre::Context;
 use positioned_io::RandomAccessFile;
@@ -26,9 +27,41 @@ async fn post_time(
 	event: EventWithContext<&MessageCreate>,
 	search_phrase: &str,
 ) -> eyre::Result<()> {
+	let message: Option<String> = if let Some((base, offset)) = search_phrase.split_once("+") {
+		let tz: Tz = base.to_uppercase().parse()?;
+		let (hour, minutes): (i32, i32) = if let Some((hour, minutes)) = offset.split_once(':') {
+			(hour.parse()?, minutes.parse()?)
+		} else {
+			(offset.parse()?, 0)
+		};
+		let offset = tz.offset_from_utc_datetime(&Utc::now().naive_utc());
+		use chrono::offset::Offset;
+		let fixed_offset = offset.fix();
+		let new_second_offset = fixed_offset.local_minus_utc() + hour * 60 * 60 + minutes * 60;
+		match FixedOffset::east_opt(new_second_offset) {
+			Some(offset) => Some(format_timezone(search_phrase, &offset, base)),
+			None => Some(format!(
+				"Offset out of range ({} > 60 * 60 * 24)",
+				new_second_offset
+			)),
+		}
+	} else {
+		find_by_name(search_phrase)
+			.await
+			.map(|it| format_timezone(&it.name, &it.timezone, &it.name))
+	};
+
+	if let Some(text) = message {
+		event.reply().content(&text).await?;
+	}
+
+	Ok(())
+}
+
+async fn find_by_name(search_phrase: &str) -> Option<&'static GeoEntry> {
 	let searcher = MultiNamePrefixMatcher::new(search_phrase);
 	let geo_db = geo_database().await;
-	let mut candidates = geo_db
+	geo_db
 		.iter()
 		.filter(|it| {
 			let mut item_searcher = searcher.clone();
@@ -36,26 +69,24 @@ async fn post_time(
 				item_searcher.accept_casefolded_match(ele);
 			}
 			item_searcher.is_matched()
-		}) // mfw treemaps exist, but also compute is cheap
-		.collect::<Vec<_>>();
-	candidates.sort_by_key(|it| it.population);
-	candidates.reverse();
-	candidates.truncate(1);
-	let mut text = String::new();
-	for city in candidates {
-		let current_time_in_timezone = Utc::now().with_timezone(&city.timezone);
-		let mut f = format!(
-			"**{}** - [{}](<http://time.is/{}>)\nCurrent Time: {:02}.{:02}.{:04} **{:02}:{:02}**\n",
-			city.name,
-			city.timezone,
-			urlencoding::encode(&city.name),
-			current_time_in_timezone.day(),
-			current_time_in_timezone.month(),
-			current_time_in_timezone.year(),
-			current_time_in_timezone.hour(),
-			current_time_in_timezone.minute(),
-		);
-		f += &match current_time_in_timezone.with_time(NaiveTime::MIN) {
+		})
+		.max_by_key(|it| it.population)
+}
+
+fn format_timezone(name: &str, timezone: &impl TimeZone, timezone_label: &str) -> String {
+	let current_time_in_timezone = Utc::now().with_timezone(timezone);
+	let mut f = format!(
+		"**{}** - [{}](<http://time.is/{}>)\nCurrent Time: {:02}.{:02}.{:04} **{:02}:{:02}**\n",
+		name,
+		timezone_label,
+		urlencoding::encode(timezone_label),
+		current_time_in_timezone.day(),
+		current_time_in_timezone.month(),
+		current_time_in_timezone.year(),
+		current_time_in_timezone.hour(),
+		current_time_in_timezone.minute(),
+	);
+	f += &match current_time_in_timezone.with_time(NaiveTime::MIN) {
 			LocalResult::Single(timestamp) => {
 				format!("-# Their midnight is your <t:{}:t>\n", timestamp.timestamp())
 			}
@@ -68,15 +99,7 @@ async fn post_time(
 				"-# They don't have a midnight (??? i thought timezone switches happened only at like 02:00, not midnight)\n".to_owned()
 			}
 		};
-
-		if f.len() + text.len() > 2000 {
-			break;
-		}
-		text += &f;
-	}
-	event.reply().content(&text).await?;
-
-	Ok(())
+	 f
 }
 
 #[derive(Clone, Debug)]
@@ -156,6 +179,18 @@ async fn geo_database() -> &'static [GeoEntry] {
 						record.as_slice()
 					),
 				}
+			}
+			for tz in TZ_VARIANTS {
+				v.push(GeoEntry {
+					geonameid: usize::MAX,
+					name: tz.name().split('/').next_back().unwrap().to_owned(),
+					alternatenames: vec![],
+					timezone: tz,
+					match_names: vec![UniCase::new(tz.name()).to_folded_case()],
+					population: u32::MAX,
+					latitude: f32::NAN,
+					longitude: f32::NAN,
+				});
 			}
 			v
 		})

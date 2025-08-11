@@ -11,8 +11,8 @@ use twilight_http::{Client, request::channel::message::CreateMessage};
 use twilight_model::{
 	channel::{message::AllowedMentions, Message},
 	gateway::{
-		payload::outgoing::{identify::IdentifyProperties, update_presence::UpdatePresencePayload},
-		presence::{Activity, ActivityEmoji, ActivityFlags, ActivityType, Status},
+		payload::outgoing::update_presence::UpdatePresencePayload,
+		presence::{Activity, ActivityEmoji, ActivityType, Status},
 	},
 };
 
