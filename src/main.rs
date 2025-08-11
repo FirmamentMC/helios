@@ -1,4 +1,5 @@
 #![deny(clippy::missing_const_for_fn)]
+#![allow(clippy::from_str_radix_10)]
 #![feature(iter_intersperse, type_changing_struct_update, duration_constructors)]
 
 use std::{env, ops::Deref, sync::Arc};

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use chrono::{DateTime, Datelike, Local, NaiveTime, Timelike, Utc, offset::LocalResult};
+use chrono::{Datelike, NaiveTime, Timelike, Utc, offset::LocalResult};
 use chrono_tz::Tz;
 use csv::StringRecord;
 use eyre::Context;
@@ -33,7 +33,7 @@ async fn post_time(
 		.filter(|it| {
 			let mut item_searcher = searcher.clone();
 			for ele in &it.match_names {
-				item_searcher.accept_casefolded_match(&ele);
+				item_searcher.accept_casefolded_match(ele);
 			}
 			item_searcher.is_matched()
 		}) // mfw treemaps exist, but also compute is cheap
@@ -95,13 +95,14 @@ impl MultiNamePrefixMatcher {
 		}
 	}
 
-	fn is_matched(&self) -> bool {
+	const fn is_matched(&self) -> bool {
 		self.expected_matches.is_empty()
 	}
 
 	fn accept_casefolded_match(&mut self, obj: &str) {
 		for ele in obj.split_whitespace() {
-			self.expected_matches.retain(|it| !ele.starts_with(it.as_ref()));
+			self.expected_matches
+				.retain(|it| !ele.starts_with(it.as_ref()));
 		}
 	}
 }
@@ -109,7 +110,7 @@ impl MultiNamePrefixMatcher {
 fn parse_record(record: &StringRecord) -> eyre::Result<GeoEntry> {
 	let name = record[1].to_owned();
 	let alternatenames: Vec<String> = record[3].split(",").map(ToOwned::to_owned).collect();
-	let match_names = vec![&name]
+	let match_names = [&name]
 		.iter()
 		.copied()
 		.chain(alternatenames.iter())
