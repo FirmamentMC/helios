@@ -9,10 +9,10 @@ use twilight_cache_inmemory::InMemoryCache;
 use twilight_gateway::{ConfigBuilder, Event, EventTypeFlags, Intents, Shard, ShardId, StreamExt};
 use twilight_http::{Client, request::channel::message::CreateMessage};
 use twilight_model::{
-	channel::{Message, message::AllowedMentions},
+	channel::{message::AllowedMentions, Message},
 	gateway::{
-		payload::outgoing::update_presence::UpdatePresencePayload,
-		presence::{Activity, ActivityType, Status},
+		payload::outgoing::{identify::IdentifyProperties, update_presence::UpdatePresencePayload},
+		presence::{Activity, ActivityEmoji, ActivityFlags, ActivityType, Status},
 	},
 };
 
@@ -62,16 +62,17 @@ async fn amain() -> eyre::Result<()> {
 				buttons: vec![],
 				created_at: None,
 				details: None,
-				emoji: None,
 				flags: None,
 				id: None,
 				instance: None,
-				kind: ActivityType::Custom,
-				name: "Ratting people".to_owned(),
 				party: None,
 				secrets: None,
-				state: None,
 				timestamps: None,
+				emoji: Some(ActivityEmoji { animated: None, name: "🐀".into(), id: Some("🐀".into()) }),
+				// Can be set by bots:
+				state: Some("Ratting people".into()),
+				name: "In your computer".into(),
+				kind: ActivityType::Custom,
 				url: None,
 			}],
 			false,
