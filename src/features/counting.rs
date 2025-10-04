@@ -189,4 +189,21 @@ enum NumberFormat {
 	Octal,
 }
 
+#[cfg(test)]
+mod tests {
+	use crate::features::counting::{NumberFormat, parse_number};
+
+	#[test]
+	fn test_basic_number_parser() {
+		assert_eq!(parse_number("1"), Some((1, NumberFormat::Decimal)));
+		assert_eq!(parse_number("0b10"), Some((2, NumberFormat::Binary)));
+		assert_eq!(
+			parse_number("0x10"),
+			Some((0x10, NumberFormat::Hexadecimal))
+		);
+		assert_eq!(parse_number("0o10"), Some((8, NumberFormat::Octal)));
+		assert_eq!(parse_number("0u000"), Some((3, NumberFormat::Unary)));
+	}
+}
+
 static CURRENT_COUNT: Mutex<Option<LastNumber>> = Mutex::const_new(None);
