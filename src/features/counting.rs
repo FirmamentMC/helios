@@ -14,7 +14,10 @@ use twilight_model::{
 
 use crate::{
 	EventWithContext, handle, handle_message,
-	utils::consts::{COUNTING_CHANNEL, FIRMAMENT_SERVER, THE_NO_ONE},
+	utils::{
+		consts::{COUNTING_CHANNEL, FIRMAMENT_SERVER, THE_NO_ONE},
+		dynroles::upsert_vanity_role,
+	},
 };
 
 handle_message!(should_reply, on_count);
@@ -88,6 +91,7 @@ async fn on_count(event: EventWithContext<&MessageCreate>) -> eyre::Result<()> {
 	}
 	tracing::info!("Incrementing counter to {given:?}");
 	let format = given.number_format;
+	let count = given.count;
 	current_holder.replace(given);
 	drop(current_holder);
 
@@ -105,7 +109,37 @@ async fn on_count(event: EventWithContext<&MessageCreate>) -> eyre::Result<()> {
 		)
 		.await?;
 
+	let counting_role = upsert_vanity_role(
+		&event.client,
+		&event.cache,
+		format!("counting: {}", next_power_of_ten(count)).into(),
+	)
+	.await;
+
+	let has_role = if let Some(member) = event.cache.member(FIRMAMENT_SERVER, event.author.id) {
+		member.roles().contains(&counting_role)
+	} else {
+		false
+	};
+	if !has_role {
+		event
+			.client
+			.add_guild_member_role(FIRMAMENT_SERVER, event.author.id, counting_role)
+			.await?;
+	}
+
 	Ok(())
+}
+
+const fn next_power_of_ten(c: u64) -> u64 {
+	if c == 0 {
+		return 0;
+	}
+	let mut p = 1;
+	while p < c {
+		p *= 10;
+	}
+	p
 }
 
 async fn mute(client: &Client, id: Id<UserMarker>, duration: Duration) -> eyre::Result<()> {
