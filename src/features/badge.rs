@@ -1,3 +1,4 @@
+use twilight_http::request::AuditLogReason;
 use twilight_mention::Mention;
 use twilight_model::gateway::payload::incoming::MessageCreate;
 
@@ -15,9 +16,11 @@ async fn on_badge_cmd(event: EventWithContext<&MessageCreate>) -> eyre::Result<(
 		};
 		let role = upsert_vanity_role(&event.client, &event.cache, name.to_owned().into()).await;
 		let message = format!("Added badge role {} to {}", role.mention(), user.mention());
+		let command = format!("badge added by {}", event.author.id.get());
 		event
 			.client
 			.add_guild_member_role(FIRMAMENT_SERVER, user, role)
+			.reason(&command)
 			.await?;
 		event.reply().content(&message).await?;
 	} else if let Some(args) = event.content.strip_prefix("!badge ") {
@@ -34,6 +37,7 @@ async fn on_badge_cmd(event: EventWithContext<&MessageCreate>) -> eyre::Result<(
 			return Ok(());
 		};
 
+		let command = format!("badge removed by {}", event.author.id.get());
 		let message = format!(
 			"Deleted badge role {} from {}",
 			role.mention(),
@@ -42,6 +46,7 @@ async fn on_badge_cmd(event: EventWithContext<&MessageCreate>) -> eyre::Result<(
 		event
 			.client
 			.remove_guild_member_role(FIRMAMENT_SERVER, user, *role)
+			.reason(&command)
 			.await?;
 		event.reply().content(&message).await?;
 	}
