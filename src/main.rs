@@ -1,6 +1,7 @@
 #![deny(clippy::missing_const_for_fn)]
 #![allow(clippy::from_str_radix_10)]
 #![feature(iter_intersperse, type_changing_struct_update, duration_constructors)]
+#![feature(impl_trait_in_bindings)]
 
 use std::{env, ops::Deref, sync::Arc};
 
@@ -9,7 +10,7 @@ use twilight_cache_inmemory::InMemoryCache;
 use twilight_gateway::{ConfigBuilder, Event, EventTypeFlags, Intents, Shard, ShardId, StreamExt};
 use twilight_http::{Client, request::channel::message::CreateMessage};
 use twilight_model::{
-	channel::{message::AllowedMentions, Message},
+	channel::{Message, message::AllowedMentions},
 	gateway::{
 		payload::outgoing::update_presence::UpdatePresencePayload,
 		presence::{Activity, ActivityEmoji, ActivityType, Status},
@@ -32,7 +33,10 @@ fn main() -> eyre::Result<()> {
 async fn amain() -> eyre::Result<()> {
 	tracing::info!("Booting up");
 	let token = env::var("DISCORD_TOKEN").wrap_err("Missing DISCORD_TOKEN env var")?;
-	let intents = Intents::MESSAGE_CONTENT | Intents::DIRECT_MESSAGES | Intents::GUILD_MESSAGES;
+	let intents = Intents::MESSAGE_CONTENT
+		| Intents::DIRECT_MESSAGES
+		| Intents::GUILD_MESSAGES
+		| Intents::GUILDS;
 
 	let client = Client::builder()
 		.token(token.clone())
@@ -68,7 +72,11 @@ async fn amain() -> eyre::Result<()> {
 				party: None,
 				secrets: None,
 				timestamps: None,
-				emoji: Some(ActivityEmoji { animated: None, name: "🐀".into(), id: Some("🐀".into()) }),
+				emoji: Some(ActivityEmoji {
+					animated: None,
+					name: "🐀".into(),
+					id: Some("🐀".into()),
+				}),
 				// Can be set by bots:
 				state: Some("Ratting people".into()),
 				name: "In your computer".into(),

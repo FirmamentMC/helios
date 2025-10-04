@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+cached = { version = "0.56.0", features = ["async"] }
 cached-path = "0.8.1"
 chrono = "0.4.41"
 chrono-tz = "0.10.4"
@@ -14,6 +15,7 @@ eyre = "0.6.12"
 inventory = "0.3.20"
 positioned-io = "0.3.4"
 rc-zip-tokio = "4.2.6"
+regex = "1.11.3"
 serde_json = "1.0.140"
 tokio = { version = "1.45.1", features = ["fs", "macros", "rt-multi-thread"] }
 tokio-scoped = "0.2.0"
@@ -23,6 +25,7 @@ tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 twilight-cache-inmemory = "0.16.0"
 twilight-gateway = "0.16.0"
 twilight-http = "0.16.0"
+twilight-mention = "0.16.0"
 twilight-model = "0.16.0"
 unicase = "2.8.1"
 urlencoding = "2.1.3"

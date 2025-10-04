@@ -5,17 +5,19 @@ use twilight_model::{
 		Message,
 		message::{MessageReference, MessageReferenceType},
 	},
-	id::{
-		Id,
-		marker::MessageMarker,
-	},
+	id::{Id, marker::MessageMarker},
 	user::User,
 };
 
-use crate::{utils::consts::{DISREGARD_ROLE, FIRMAMENT_SERVER, OBEY_ROLE, THE_BIG_RAT}, EventContext, EventWithContext};
+use crate::{
+	EventContext, EventWithContext,
+	utils::consts::{DISREGARD_ROLE, FIRMAMENT_SERVER, OBEY_ROLE, THE_BIG_RAT},
+};
 
-pub mod consts;
+pub mod args;
 pub mod cached;
+pub mod consts;
+pub mod dynroles;
 pub trait UserExt {
 	fn mention(&self) -> String;
 }
@@ -56,9 +58,7 @@ impl AuthorPerms {
 	}
 }
 
-pub fn author_perms<T: Deref<Target = Message>>(
-	msg: &EventWithContext<&T>,
-) -> AuthorPerms {
+pub fn author_perms<T: Deref<Target = Message>>(msg: &EventWithContext<&T>) -> AuthorPerms {
 	if msg.author.bot {
 		return AuthorPerms::Ignore;
 	}
