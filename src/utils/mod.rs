@@ -131,3 +131,11 @@ macro_rules! handle_message {
 		});
 	};
 }
+
+#[macro_export]
+macro_rules! fixed_regex {
+	($n:ident = $e:expr) => {
+		static $n: ::std::sync::LazyLock<::regex::Regex> =
+			::std::sync::LazyLock::new(|| ::regex::Regex::new($e).unwrap());
+	};
+}

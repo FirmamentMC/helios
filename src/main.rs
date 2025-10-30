@@ -22,8 +22,8 @@ use crate::utils::{BoxedEventHandler, MessageExt as _};
 pub mod utils;
 
 fn main() -> eyre::Result<()> {
-	tracing_subscriber::fmt::init();
 	_ = dotenv::dotenv();
+	tracing_subscriber::fmt::init();
 	tracing::info!("Creating async runtime");
 	tokio::runtime::Builder::new_multi_thread()
 		.enable_all()
